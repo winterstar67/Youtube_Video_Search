@@ -18,3 +18,12 @@
 만약 자동 자막 전처리를 한다면, 자동 자막(전처리 전)과 영어 자막이 올라온 자막(Label) 가 둘 다 있는 동영상들을 모아서, 전처리 후의 성능이 어떤지 `자동 자막 - Label`과 `전처리된 자동 자막 - Label`을 비교해서 유의미하게 좋아지는지를 파악해야 됨.
 
 
+### 작성 시간 2025-10-04 19:45
+## SaT 적용해서 문장 단위로 split함과 동시에 해당 문장의 시간 대를 같이 저장해서 tracking하는 방법
+# 맨 처음 split된 상태인 원본 데이터를 가지고 있는다
+# 마찬가지로 원본 split의 start와 duration을 가지고 있는다
+# 그리고 concat하고 split한 결과를 가져온다.
+
+# 원본 split 데이터 각각을 좌측에서부터 align 시켜 나가면서 start와 duration을 확인한다  ## 이미 처리한 부분들은 삭제하면서 계속 진행해 나가기?
+    - 원본 문장이 다 맞춰질 때까지 (혹시 모르니 공백(space)은 아예 없애는 편이 나으려나?)
+    - 원본이 "like to do it what about this" 이고 문장 합치고 split했을 때 ["I like to", "do it", "what about this"] 라면 처음 like부터 계속 매칭하면서 about this 나올 때 까지 matching 과정을 진행
