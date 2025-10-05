@@ -25,8 +25,10 @@ transcript_processing.py
 
 import os
 import pickle
+import json
 from wtpsplit import SaT
 from youtube_transcript_api import YouTubeTranscriptApi
+from datetime import datetime
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -36,11 +38,12 @@ INPUT_FILE_NAME:str = "Youtube_transcription.pkl"
 INPUT_FILE_PATH_WITH_NAME:str = os.path.join(INPUT_FILE_PATH, INPUT_FILE_NAME)
 
 OUTPUT_FILE_PATH:str = os.path.join(parent_dir, "data", "results")
-OUTPUT_FILE_NAME:str = "transcript_by_sentence.pkl"
+OUTPUT_FILE_EXTENSION:str = "json"
+OUTPUT_FILE_NAME:str = f"transcript_by_sentence.{OUTPUT_FILE_EXTENSION}"
 OUTPUT_FILE_PATH_WITH_NAME:str = os.path.join(OUTPUT_FILE_PATH, OUTPUT_FILE_NAME)
 
 BACKUP_FILE_PATH:str = os.path.join(parent_dir, "backup")
-BACKUP_FILE_NAME:str = "transcript_by_sentence_YYYYMMDD.pkl"
+BACKUP_FILE_NAME:str = f"{OUTPUT_FILE_NAME}_{datetime.now().strftime('%Y%m%d')}.{OUTPUT_FILE_EXTENSION}"
 BACKUP_FILE_PATH_WITH_NAME:str = os.path.join(BACKUP_FILE_PATH, BACKUP_FILE_NAME)
 
 config = {
@@ -59,8 +62,9 @@ def input_file_loader(input_file_path:str=INPUT_FILE_PATH_WITH_NAME) -> dict:
         - example:
           {
             "https://www.youtube.com/watch?v=EWvNQjAaOHw": [
-                {"text": "hi everyone so I've wanted to make this video for a while", "start": 0.719, "end": 5.4},
-                {"text": "it is a comprehensive", "start": 5.4, "end": 10.72},
+                FetchedTranscript(snippets=[FetchedTranscriptSnippet(text='hi everyone so in this video I would', start=0.12, duration=3.72), 
+                FetchedTranscriptSnippet(text='like to continue our general audience', start=2.159, duration=5.041), 
+                FetchedTranscriptSnippet(text='series on large language models like', start=3.84, duration=5.839),
                 ...
             ]
           }
@@ -73,11 +77,11 @@ def save_result_to_file(result:dict[str, list[dict]], file_path:str=OUTPUT_FILE_
     """
     Save result to file
     """
-    with open(file_path, "wb") as f:
-        pickle.dump(result, f)
+    with open(file_path, "w") as f:
+        json.dump(result, f)
 
-    with open(backup_file_path, "wb") as f:
-        pickle.dump(result, f)
+    with open(backup_file_path, "w") as f:
+        json.dump(result, f)
 
 def YouTubeTranscript_to_text(YouTubeTranscript:YouTubeTranscriptApi) -> str:
     """

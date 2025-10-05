@@ -1,2 +1,5 @@
 .env
 data/
+backup/
+src/Not_Used_files/
+src/Youtube_tool/__pycache__/

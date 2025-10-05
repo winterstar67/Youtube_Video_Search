@@ -27,3 +27,10 @@
 # 원본 split 데이터 각각을 좌측에서부터 align 시켜 나가면서 start와 duration을 확인한다  ## 이미 처리한 부분들은 삭제하면서 계속 진행해 나가기?
     - 원본 문장이 다 맞춰질 때까지 (혹시 모르니 공백(space)은 아예 없애는 편이 나으려나?)
     - 원본이 "like to do it what about this" 이고 문장 합치고 split했을 때 ["I like to", "do it", "what about this"] 라면 처음 like부터 계속 매칭하면서 about this 나올 때 까지 matching 과정을 진행
+
+### 작성 시간 2025-10-05
+## Pinecone Vector DB에 데이터 넣기
+
+
+### 작성 시간 2025-10-06 1:42
+## namespace list 를 반환하는 함수 따로, 그리고 해당 list안에 내가 원하는 namespace가 있는지 확인하는 function을 각각 2개를 만들지, 아니면 그냥 바로 내가 원하는 namespace가 있는지 확인하는 function만 만들지  고민중임
