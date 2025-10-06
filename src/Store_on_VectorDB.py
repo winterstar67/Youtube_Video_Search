@@ -4,12 +4,25 @@ Store on VectorDB
 Order in pipeline: Third (3)
 
 Function:
-    1. transcript_processing.py에서 받은 데이터를 VectorDB에 저장
+    1. transcript_processing.py에서 받은 데이터를 VectorDB에 저장되는 형태로 변환
+    2. Vector DB에 저장
 
-Input:    
+Input:
+    1. transcript_processing.py에서 받은 데이터
 
 Output:
     - VectorDB에 저장된 데이터
+
+Guidance:
+    - ID 부여 방식:
+        - 서로 다른 youtube video, Docs 등 모든 source에 대해 global한 increasing count를 사용
+        - 형식: {source_identifier}__{global_id}
+        - 예시: Docs1__id1, Docs2__id2, youtube_video5__id3, Docs1__id4
+
+    - Debugging 시:
+        - 개별 source별로 debugging이 필요한 경우, source identifier로 filtering
+        - 형식: Docs{num} 혹은 youtube_video{num}
+        - Filtering 후 index reordering을 통해 debugging 수행
 """
 
 import os
@@ -158,7 +171,22 @@ def check_namespace_list(pc_index:"Pinecone.Index") -> dict[str, int]: # Level 3
 
     return result
 
-def get_namespace_len(pc_index:"Pinecone.Index", namespace:str) -> int: # Level 3 (namespace Level)
+def check_vector_id_existence(pc_index:"Pinecone.Index", namespace:str=config["namespace"], vector_id_list:list[str]=[]) -> bool:
+    """
+    Check vector id existence
+    Input: pc_index, namespace, vector_id_list
+        - pc_index: Pinecone.Index(host=PINECONE_HOST)
+        - namespace: "namespace"
+        - vector_id_list: ["vec1", "vec2", ...]
+
+    Output: 
+        - example: True
+    
+    Similar with SELECT in SQL: SELECT * FROM table WHERE id IN (vec1, vec2, ...)
+    """
+    return bool(pc_index.fetch(ids=vector_id_list, namespace=namespace).vectors)
+
+def get_namespace_len(pc_index:"Pinecone.Index", namespace:str=config["namespace"]) -> int: # Level 3 (namespace Level)
     """
     Get namespace length
     Input: pc_index, namespace
@@ -168,7 +196,25 @@ def get_namespace_len(pc_index:"Pinecone.Index", namespace:str) -> int: # Level 
     Output: int type
         - example: 2
     """
-    return pc_index.describe_index_stats()["namespaces"][namespace]["vector_count"]
+    exist = bool(pc_index.describe_index_stats()["namespaces"])
+    if exist:
+        return pc_index.describe_index_stats()["namespaces"][namespace]["vector_count"]
+    else:
+        return 0
+
+def get_vector_data_samples(pc_index:"Pinecone.Index", ids:list[str], namespace:str=config["namespace"]) -> list[dict]: # Level 3 (namespace Level)
+    """
+    Get vector data of sample data
+    Input: pc_index, ids, namespace
+        - pc_index: Pinecone.Index(host=PINECONE_HOST)
+        - ids: list[str] type
+            - example: ["vec1", "vec2", ...]
+        - namespace: "namespace"
+    
+    Output: FetchResponse type
+        - example: FetchResponse(namespace="namespace", vectors=[{"id": "vec1", "values": [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1], "metadata": {"genre": "comedy", "year": 2020}}, {"id": "vec2", "values": [0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2], "metadata": {"genre": "documentary", "year": 2019}}])
+    """
+    return pc_index.fetch(ids=ids, namespace=namespace).vectors
 
 def namespace_checker(namespace_list:list[str], namespace:str) -> bool: # Level 3 (namespace Level)
     """
@@ -182,7 +228,7 @@ def namespace_checker(namespace_list:list[str], namespace:str) -> bool: # Level 
     """
     return namespace in namespace_list
 
-def records_id_sampling(pc_index:"Pinecone.Index", limit:int=3, namespace:str="default") -> list[str]: # Level 3 (namespace Level)
+def records_id_sampling(pc_index:"Pinecone.Index", limit:int=3, namespace:str=config["namespace"]) -> list[str]: # Level 3 (namespace Level)
     """
     Sampling records id
     Input: pc_index, limit, namespace
@@ -235,7 +281,7 @@ def create_integrated_model_index(pc:Pinecone, index_name:str, config:dict) -> N
     else:
         print("The index already exist")
 
-def upsert_data(pc_index:"Pinecone.Index", vectors:list[dict], namespace:str="default") -> None: # Level 2 (Index Level)
+def upsert_data(pc_index:"Pinecone.Index", vectors:list[dict], namespace:str=config["namespace"]) -> None: # Level 2 (Index Level)
     """
     It's for user defined embedding model
     Input: pc_index, vectors, namespace
@@ -257,9 +303,13 @@ def upsert_data(pc_index:"Pinecone.Index", vectors:list[dict], namespace:str="de
     Output: None
         - Just upsert vectors data
     """
-    pc_index.upsert(vectors, namespace=namespace)
+    vector_exist = check_vector_id_existence(pc_index=pc_index, namespace=namespace, vector_id_list=list(map(lambda x: x["id"], vectors)))
+    if vector_exist:
+        print("The vector already exist!! all upsert has been canceled")
+    else:
+        pc_index.upsert(namespace, vectors)
 
-def upsert_records(pc_index:"Pinecone.Index", records:list[dict], namespace:str="default") -> None: # Level 2 (Index Level)
+def upsert_records(pc_index:"Pinecone.Index", records:list[dict], namespace:str=config["namespace"]) -> None: # Level 2 (Index Level)
     """
     It's for integrated model
     Input: pc_index, vectors, namespace
@@ -282,7 +332,25 @@ def upsert_records(pc_index:"Pinecone.Index", records:list[dict], namespace:str=
     Output: None
         - Just upsert records data
     """
-    pc_index.upsert_records(records, namespace=namespace)
+    record_exist = check_vector_id_existence(pc_index=pc_index, namespace=namespace, vector_id_list=list(map(lambda x: x["id"], records)))
+    if record_exist:
+        print("The record already exist!! all upsert has been canceled")
+    else:
+        pc_index.upsert_records(namespace, records)
+
+def delete_vector_data(pc_index:"Pinecone.Index", namespace:str, vector_id_list:list[str]=[]) -> None:
+    """
+    Delete vector id
+    Input: pc, namespace, vector_id_list
+        - pc: Pinecone(api_key=PINECONE_API_KEY)
+        - namespace: "namespace"
+        - vector_id_list: ["vec1", "vec2", ...]
+    """
+    vector_exist = check_vector_id_existence(pc_index=pc_index, namespace=namespace, vector_id_list=vector_id_list)
+    if vector_exist:
+        pc_index.delete(ids=vector_id_list, namespace=namespace)
+    else:
+        print("The vector id does not exist!! all delete has been canceled")
 
 ### === Data Processing ===
 
@@ -291,41 +359,55 @@ def transcript_to_record(id:str, transcript_data:dict) -> dict:
     Convert transcript data to record
     Input: transcript_data
         - transcript_data: dict type
-            - example: {"text": "Hello, world!", "start": 0.12, "end": 3.72},
+            - example: {"text": "Hello, world!", "start": 0.12, "end": 3.72, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'},
 
     Output: list[dict] type
-        - example: {"id": "rec1", "text": "Hello, world!", metadata: str({"start": 0.12, "end": 3.72})}
+        - example: {"id": "rec1", "text": "Hello, world!", metadata: str({"start": 0.12, "end": 3.72, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'})}
     """
-    return {"id": id, f"{config["embed"]["field_map"]['text']}": transcript_data["text"], "metadata": str({"start": transcript_data["start"], "duration": transcript_data["end"]})}
+    return {"id": str(id), f"{config["embed"]["field_map"]['text']}": transcript_data["text"], "metadata": str({"start": transcript_data["start"], "duration": transcript_data["end"]})}
 
-def transcript_to_record_batch(transcript_data:list[dict], pc_index:"Pinecone.Index", namespace:str) -> list[dict]:
+def transcript_to_record_batch(video_ids:str, transcript_data:list[dict], pc_index:"Pinecone.Index", namespace:str) -> list[dict]:
     """
     Convert transcript data to record
-    Input: transcript_data
+    Input: video_ids, transcript_data, pc_index, namespace
+        - video_ids: list[str] type
+            - example: ["video_id1", "video_id2", ...]
         - transcript_data: list[dict] type
             - example: [
-                        {"text": "Hello, world!", "start": 0.12, "end": 3.72},
-                        {"text": "How are you?", "start": 3.73, "end": 5.61},
+                        {"text": "Hello, world!", "start": 0.12, "end": 3.72, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'},
+                        {"text": "How are you?", "start": 3.73, "end": 5.61, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'},
                         ...
                         ]
+        - pc_index: Pinecone.Index(host=PINECONE_HOST)
+        - namespace: "namespace"
 
     Output: list[dict] type
         - example: [
-                {"id": "rec1", "text": "Hello, world!", metadata: str({"start": 0.12, "end": 3.72})}
-                {"id": "rec2", "text": "How are you?", metadata: str({"start": 3.73, "end": 5.61})}
+                {"id": "rec1", "text": "Hello, world!", metadata: str({"start": 0.12, "end": 3.72, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'})}
+                {"id": "rec2", "text": "How are you?", metadata: str({"start": 3.73, "end": 5.61, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'})}
                 ...
             ]
     """
     result = []
-    id_start = get_namespace_len(pc_index=pc_index, namespace=namespace)+1
+    id_start = get_namespace_len(pc_index=pc_index, namespace=namespace) + 1
+    id_start_tracker = id_start
+    for video_id in video_ids:
+        id_start = id_start_tracker
+        for id, record in enumerate(transcript_data[video_id], id_start):
+            result.append(transcript_to_record(id=f"{video_id}__{id}", transcript_data=record))
+            id_start_tracker += 1
 
-    for id, record in enumerate(transcript_data, id_start):
-        result.append(transcript_to_record(id=id, transcript_data=record))
     return result
-    
-# def delete_index(pc:Pinecone, index_name:str) -> None:
-#     pc.delete_index(index_name)
-    
 
+def main():
+    pc = connect_to_Pinecone(api_key=PINECONE_API_KEY)
+    pc_index = connect_to_Index(pc=pc, host=PINECONE_HOST)
+    transcript_data = intput_data_loader(input_file_path=INPUT_FILE_PATH_WITH_NAME)
 
+    result = transcript_to_record_batch(video_ids=list(transcript_data.keys()), transcript_data=transcript_data, pc_index=pc_index, namespace=config["namespace"])
 
+    upsert_records(pc_index=pc_index, records=result, namespace=config["namespace"])
+    print(f"{len(result)} records has been upserted!! Done!!")
+
+if __name__ == "__main__":
+    main()

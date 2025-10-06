@@ -34,3 +34,28 @@
 
 ### 작성 시간 2025-10-06 1:42
 ## namespace list 를 반환하는 함수 따로, 그리고 해당 list안에 내가 원하는 namespace가 있는지 확인하는 function을 각각 2개를 만들지, 아니면 그냥 바로 내가 원하는 namespace가 있는지 확인하는 function만 만들지  고민중임
+
+## Metadata에 Video 정보도 넣긴 해야됨.  ->  key값에 video link가 아니라 video title을 넣던가 해야 됨.
+    - Author, Chennel, Video title 같이 동영상의 meta data를 넣어야 됨.
+
+### 작성 시간 2025-10-06
+## src/Store_on_VectorDB.py 에 def main() 부분을 작성해야 함
+
+## 자막 quality를 최대한 더 올려야 한다 (의미 없는 text filtering이 필요함)
+
+## 나머지 retrieval 과정을 완성해서 pipeline을 구축한다.
+    - https://docs.pinecone.io/guides/get-started/quickstart
+
+## Airflow를 사용해본다.
+
+## 작성 시간 2025-10-06 19:05
+    - 먼저 자동 자막과 없어도 문장의 의미에 영향을 주지 않는 text 패턴들을 찾으라고 지시하기(예: uh, hmm, okay). 그리고  쓸데없는 패턴을 가진 경우, 어떻게 처리할지 물어보기. 처리 코드를 준다면 하나의 string text를 받아서 처리하는 파이썬 코드를 작성해달라고 요청하기
+        - 함부로 삭제하면 안됨. 왜냐하면, uh를 삭제했다가 uh라는 text를 포함한 단어에 까지 영향을 미칠 수 있기 때문임. 
+        - ChatGPT thinking mode로 물어보기
+
+    - ID Table 만들기
+    - MetaData가 유튜브 동영상에 따라 중복되는 경우는, Metadata에는 동영상 id 같은 것만 넣어두고 나머지는 ID Table 참조하도록 변경하기
+    - Vector 자체의 ID에 대해서, 그냥 {youtubeID}_{increasing count} 형식으로 가야할듯
+
+## 작성 시간 2025-10-06 23:56
+    - Vector DB에 들어가는 chunk_text 혹은 vector의 개별 id를 {동영상_id}_{increasing_count} 형식에 맞춰서 변형하는 작업 필요
