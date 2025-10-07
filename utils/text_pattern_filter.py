@@ -1,6 +1,6 @@
 import re
 
-def remove_filler_words(text):
+def remove_filler_words(text:list[str]) -> list[str]:
     """
     STT 텍스트에서 Filler words만 제거하는 함수
     
@@ -13,12 +13,12 @@ def remove_filler_words(text):
     
     Parameters:
     -----------
-    text : str
+    text : list[str]
         정제할 원본 텍스트
     
     Returns:
     --------
-    str
+    list[str]
         Filler words가 제거된 텍스트
     """
     
@@ -28,28 +28,39 @@ def remove_filler_words(text):
     # 1. "uh" 제거
     # \b는 word boundary로 단어의 경계를 의미
     # "uh"가 단독 단어일 때만 제거되므로 "uhaul"의 "uh"는 보호됨
-    refined_text = re.sub(r'\b[Uu]h\b', '', refined_text)
+    refined_text = list(map(lambda x: re.sub(r'\b[Uu]h\b', '', x), refined_text))
     
     # 2. "um" 제거
     # "um"이 단독 단어일 때만 제거
-    refined_text = re.sub(r'\b[Uu]m\b', '', refined_text)
+    refined_text = list(map(lambda x: re.sub(r'\b[Uu]m\b', '', x), refined_text))
     
     # 3. "hmm" 제거 (hmmm, hmmmm 등 m이 여러 개인 변형도 포함)
     # [Hh]m+는 "h" 또는 "H" 다음에 "m"이 1개 이상 오는 패턴
-    refined_text = re.sub(r'\b[Hh]m+\b', '', refined_text)
+    refined_text = list(map(lambda x: re.sub(r'\b[Hh]m+\b', '', x), refined_text))
     
     # 4. 여러 개의 연속된 공백을 하나로 정리
     # Filler words 제거 후 생긴 중복 공백 정리
-    refined_text = re.sub(r'\s+', ' ', refined_text)
+    refined_text = list(map(lambda x: re.sub(r'\s+', ' ', x), refined_text))
     
     # 5. 문장 부호 앞의 불필요한 공백 제거
     # 예: "word , another" -> "word, another"
-    refined_text = re.sub(r'\s+([,.!?;:])', r'\1', refined_text)
+    refined_text = list(map(lambda x: re.sub(r'\s+([,.!?;:])', r'\1', x), refined_text))
     
     # 6. 문장 시작 부분의 공백 제거
-    refined_text = refined_text.strip()
     
     return refined_text
+
+def remove_short_text(text_list:list[str], min_length:int=10) -> list[str]:
+    """
+    Remove short text
+    """
+    result:list[str] = []
+    for _text in text_list:
+        if len(_text) > min_length:
+            result.append(_text)
+        else:
+            pass
+    return result
 
 def main():
     sample_text = "I want to show you how I use these tools and how you can also use them uh in your own life and work"

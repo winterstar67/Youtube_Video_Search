@@ -1,5 +1,6 @@
 """
 oreder in pipeline: First (1)
+    - Next_file: transcript_processing.py
 
 youtube_transcript_api를 사용하여 지정한 동영상들의 자막을 추출하는 모듈
 
@@ -40,17 +41,16 @@ from datetime import datetime
 current_path = os.path.dirname(os.path.abspath(__file__))
 parent_path = os.path.dirname(current_path)
 
+import sys
+sys.path.append(parent_path)
+from utils import file_path_reader
+
 INPUT_FILE_PATH:str = os.path.join(parent_path, "data", "external_data")
 INPUT_FILE_NAME:str = "video_link_target.yaml"
 
 OUTPUT_FILE_PATH:str = os.path.join(parent_path, "data", "results")
 OUTPUT_FILE_EXTENSION:str = "pkl"
 OUTPUT_FILE_NAME:str = "Youtube_transcription"
-OUTPUT_FILE_PATH_WITH_NAME:str = os.path.join(OUTPUT_FILE_PATH, OUTPUT_FILE_NAME) + "." + OUTPUT_FILE_EXTENSION
-
-BACKUP_FILE_PATH:str = os.path.join(parent_path, "backup")
-BACKUP_FILE_NAME:str = f"{OUTPUT_FILE_NAME}_{datetime.now().strftime('%Y%m%d')}"
-BACKUP_FILE_PATH_WITH_NAME:str = os.path.join(BACKUP_FILE_PATH, BACKUP_FILE_NAME) + "." + OUTPUT_FILE_EXTENSION
 
 # ================================ Function definition ================================
 def check_input_file_existence() -> None:
@@ -72,7 +72,7 @@ def check_result_path_existence() -> None:
     """
     Check if the result save path exists
     """
-    global OUTPUT_FILE_PATH, BACKUP_FILE_PATH
+    global OUTPUT_FILE_PATH
 
     try:
         if not os.path.exists(OUTPUT_FILE_PATH):
@@ -80,45 +80,50 @@ def check_result_path_existence() -> None:
         else:
             print("Result save path already exists")
         
-        if not os.path.exists(BACKUP_FILE_PATH):
-            os.makedirs(BACKUP_FILE_PATH, exist_ok=True)
+        if not os.path.exists("backup"):
+            os.makedirs("backup", exist_ok=True)
         else:
             print("Backup file path already exists")
     except Exception as e:
         print("Error at check_result_path_existence: " + str(e))
 
-def output_dictionary_loader() -> dict[str, list[dict]]:
+def output_dictionary_loader(output_file_path:str, output_file_name:str, output_file_extension:str) -> dict[str, list[dict]]:
     """
     Load output dictionary from pickle file
+
+    Input: output_file_path, output_file_name, output_file_extension
+        - example: "data/results", "Youtube_transcription", "pkl"
+
+    Output: dict[str, list[dict]]
     """
-    global OUTPUT_FILE_PATH_WITH_NAME
+    output_file_path_with_name = output_file_path + "/" + output_file_name + "." + output_file_extension
     try:
-        if not os.path.exists(OUTPUT_FILE_PATH_WITH_NAME):
+        if not os.path.exists(output_file_path_with_name):
             return {}
         else:
-            with open(OUTPUT_FILE_PATH_WITH_NAME, "rb") as f:
+            with open(output_file_path_with_name, "rb") as f:
                 return pickle.load(f)
     except Exception as e:
         print("Error at output_dictionary_loader: " + str(e))
         return {}
 
-def save_result_to_file(youtube_transcription_dict:dict[str, list[dict]]) -> None:
+def save_result_to_file(youtube_transcription_dict:dict[str, list[dict]], output_file_path:str, output_file_name:str, output_file_extension:str) -> None:
     """
     Save result to file
     """
-    global OUTPUT_FILE_PATH_WITH_NAME, BACKUP_FILE_PATH_WITH_NAME
+    backup_file_path = file_path_reader.backup_file_path_reader(output_file_name=output_file_name, output_file_extension=output_file_extension)
 
     try:
-        with open(OUTPUT_FILE_PATH_WITH_NAME, "wb") as f:
+        with open(output_file_path + "/" + output_file_name + "." + output_file_extension, "wb") as f:
             pickle.dump(youtube_transcription_dict, f)    
 
-        with open(BACKUP_FILE_PATH_WITH_NAME, "wb") as f:
+        with open(backup_file_path, "wb") as f:
             pickle.dump(youtube_transcription_dict, f)
 
     except Exception as e:
         print("Error at save_result_to_file: " + str(e))
 
-def save_result_to_csv(youtube_video_infos:dict[str, list[dict]]) -> None:
+def save_result_to_csv(youtube_video_infos:dict[str, list[dict]], output_file_path:str, output_file_name:str, output_file_extension:str) -> None:
     """
     Save result to csv file
     It save ID Table to csv file
@@ -140,11 +145,11 @@ def save_result_to_csv(youtube_video_infos:dict[str, list[dict]]) -> None:
 
     Output: None
     """
-    global OUTPUT_FILE_PATH, OUTPUT_FILE_NAME, BACKUP_FILE_PATH, BACKUP_FILE_NAME
+    backup_file_path = file_path_reader.backup_file_path_reader(output_file_name=output_file_name, output_file_extension=output_file_extension)
     value_sample = youtube_video_infos[list(youtube_video_infos.keys())[0]]
     columns = ['youtube_id', *list(value_sample.keys())]
     try:
-        if os.path.exists(OUTPUT_FILE_PATH + "/" + OUTPUT_FILE_NAME + ".csv"):
+        if os.path.exists(output_file_path + "/" + output_file_name + ".csv"):
             previous_output_df = pd.read_csv(OUTPUT_FILE_PATH + OUTPUT_FILE_NAME + ".csv")
         else:
             previous_output_df = pd.DataFrame(columns=columns)
@@ -153,24 +158,22 @@ def save_result_to_csv(youtube_video_infos:dict[str, list[dict]]) -> None:
         current_output_df = current_output_df.rename(columns={'index': 'youtube_id'})
 
         output_df = pd.concat([previous_output_df, current_output_df], ignore_index=True)
-        output_df.to_csv(OUTPUT_FILE_PATH + "/" + OUTPUT_FILE_NAME + ".csv", index=False)
+        output_df.to_csv(output_file_path + "/" + output_file_name + ".csv", index=False)
         
         backup_df = pd.concat([previous_output_df, current_output_df], ignore_index=True)
-        backup_df.to_csv(BACKUP_FILE_PATH + "/" + BACKUP_FILE_NAME + ".csv", index=False)
+        backup_df.to_csv(backup_file_path, index=False)
 
     except Exception as e:
         print("Error at save_result_to_csv: " + str(e))
 
 
-def get_transcription(file_path:str=None, result_save_path:str=OUTPUT_FILE_PATH_WITH_NAME) -> dict[str, list[dict]]:
+def get_transcription(file_path:str=None) -> dict[str, list[dict]]:
     """
     Get transcription of each video using YouTubeTranscriptApi
 
     Args:
         file_path (str, optional): Path to YAML file containing YouTube video links.
             Defaults to INPUT_FILE_PATH/INPUT_FILE_NAME ("data/external_data/video_link_target.yaml")
-        result_save_path (str, optional): Directory path to save results.
-            Defaults to OUTPUT_FILE_PATH ("data/results")
 
     Returns:
         dict[str, FetchedTranscript]: Dictionary mapping video URL to transcript object
@@ -204,7 +207,7 @@ def get_transcription(file_path:str=None, result_save_path:str=OUTPUT_FILE_PATH_
         >>> print(first_snippet.start)  # 0.12
         >>> print(first_snippet.duration)  # 3.72
     """
-    global INPUT_FILE_PATH, INPUT_FILE_NAME, OUTPUT_FILE_PATH_WITH_NAME, BACKUP_FILE_PATH_WITH_NAME
+    global INPUT_FILE_PATH, INPUT_FILE_NAME
 
     try:
         if file_path is None:
@@ -213,7 +216,7 @@ def get_transcription(file_path:str=None, result_save_path:str=OUTPUT_FILE_PATH_
         check_result_path_existence()
         check_input_file_existence()
 
-        youtube_transcription_dict_loaded:dict[str, list[dict]] = output_dictionary_loader()
+        youtube_transcription_dict_loaded:dict[str, list[dict]] = output_dictionary_loader(output_file_path=OUTPUT_FILE_PATH, output_file_name=OUTPUT_FILE_NAME, output_file_extension=OUTPUT_FILE_EXTENSION)
 
         with open(file_path, "r", encoding="utf-8") as f:
             _target_link_lists:list[str] = yaml.safe_load(f)['target_video_link']
@@ -233,7 +236,7 @@ def get_transcription(file_path:str=None, result_save_path:str=OUTPUT_FILE_PATH_
         print("Youtube transcription is fetched")
 
         youtube_video_infos:dict = Youtube_Collection.main()
-        save_result_to_csv(youtube_video_infos)
+        save_result_to_csv(youtube_video_infos, output_file_path=OUTPUT_FILE_PATH, output_file_name=OUTPUT_FILE_NAME, output_file_extension=OUTPUT_FILE_EXTENSION)
         print("Youtube video infos are fetched")
 
         merged_dict = {
@@ -246,7 +249,7 @@ def get_transcription(file_path:str=None, result_save_path:str=OUTPUT_FILE_PATH_
 
         result = youtube_transcription_dict_loaded
 
-        save_result_to_file(result)
+        save_result_to_file(result, output_file_path=OUTPUT_FILE_PATH, output_file_name=OUTPUT_FILE_NAME, output_file_extension=OUTPUT_FILE_EXTENSION)
 
         return result
     

@@ -1,7 +1,7 @@
 """
 Store on VectorDB
 
-Order in pipeline: Third (3)
+Order in pipeline: Fourth (4)
 
 Function:
     1. transcript_processing.py에서 받은 데이터를 VectorDB에 저장되는 형태로 변환
@@ -28,8 +28,6 @@ Guidance:
 import os
 import json
 from pinecone import Pinecone, ServerlessSpec
-
-import os
 import dotenv
 
 dotenv.load_dotenv()
@@ -42,16 +40,8 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 
 INPUT_FILE_PATH = os.path.join(parent_dir, "data", "results")
-INPUT_FILE_NAME = "transcript_by_sentence.json"
+INPUT_FILE_NAME = "vectorDB_upsert_data.json"
 INPUT_FILE_PATH_WITH_NAME = os.path.join(INPUT_FILE_PATH, INPUT_FILE_NAME)
-
-# OUTPUT_FILE_PATH = os.path.join(parent_dir, "data", "results")
-# OUTPUT_FILE_NAME = "VectorDB_data.pkl"
-# OUTPUT_FILE_PATH_WITH_NAME = os.path.join(OUTPUT_FILE_PATH, OUTPUT_FILE_NAME)
-
-# BACKUP_FILE_PATH = os.path.join(parent_dir, "backup")
-# BACKUP_FILE_NAME = "VectorDB_data.pkl"
-# BACKUP_FILE_PATH_WITH_NAME = os.path.join(BACKUP_FILE_PATH, BACKUP_FILE_NAME)
 
 ### === VectorDB Configuration ===
 config = {
@@ -70,7 +60,7 @@ def intput_data_loader(input_file_path:str=INPUT_FILE_PATH_WITH_NAME) -> dict:
     """
     Load input data from json file
     Input: input_file_path type
-        - example: "data/results/transcript_by_sentence.json"
+        - example: "data/results/vectorDB_upsert_data.json"
 
     Output: dict[str, list[dict]] type
         - example:
@@ -88,7 +78,6 @@ def intput_data_loader(input_file_path:str=INPUT_FILE_PATH_WITH_NAME) -> dict:
     return result
 
 # === Connect to VectorDB ===
-# Check (Completed)
 def connect_to_Pinecone(api_key:str=PINECONE_API_KEY) -> Pinecone: # Level 1 (Pinecone Level)
     """
     Input: api_key type
@@ -99,7 +88,6 @@ def connect_to_Pinecone(api_key:str=PINECONE_API_KEY) -> Pinecone: # Level 1 (Pi
     """
     return Pinecone(api_key=api_key)
 
-# Check (Completed)
 def connect_to_Index(pc:Pinecone, host:str=PINECONE_HOST) -> "Pinecone.Index": # Level 2 (Index Level)
     """
     Connect to Index
@@ -113,7 +101,6 @@ def connect_to_Index(pc:Pinecone, host:str=PINECONE_HOST) -> "Pinecone.Index": #
     """
     return pc.Index(host=host)
 
-# Check (Completed)
 def check_index_list(pc:Pinecone) -> list[str]: # Level 2 (Index Level)
     """
     Check index list
@@ -126,7 +113,6 @@ def check_index_list(pc:Pinecone) -> list[str]: # Level 2 (Index Level)
     result = pc.list_indexes().names()
     return result
 
-# Check (Completed)
 def check_index_existence(index_list:list[str], index_name:str) -> bool: # Level 2 (Index Level)
     """
     Check index existence
@@ -404,10 +390,8 @@ def main():
     pc_index = connect_to_Index(pc=pc, host=PINECONE_HOST)
     transcript_data = intput_data_loader(input_file_path=INPUT_FILE_PATH_WITH_NAME)
 
-    result = transcript_to_record_batch(video_ids=list(transcript_data.keys()), transcript_data=transcript_data, pc_index=pc_index, namespace=config["namespace"])
-
-    upsert_records(pc_index=pc_index, records=result, namespace=config["namespace"])
-    print(f"{len(result)} records has been upserted!! Done!!")
+    upsert_records(pc_index=pc_index, records=transcript_data, namespace=config["namespace"])
+    print(f"{len(transcript_data)} records has been upserted! Done!")
 
 if __name__ == "__main__":
     main()

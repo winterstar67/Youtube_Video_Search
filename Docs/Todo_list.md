@@ -59,3 +59,31 @@
 
 ## 작성 시간 2025-10-06 23:56
     - Vector DB에 들어가는 chunk_text 혹은 vector의 개별 id를 {동영상_id}_{increasing_count} 형식에 맞춰서 변형하는 작업 필요
+
+## 작성 시간 2025-10-07 02:25
+    - 유튜브 말고도 Article과 Paper도 RAG 적용하는 것을 고려해보자.
+    - https://huggingface.co/nvidia/NV-Embed-v2 의 embedding vector도 고려해보자(ChatGPT Research로 찾은 embedding model임.)
+
+
+## 작성 시간 2025-10-07 12:32
+    - 현재 문제: 3개 문장을 연결하는 바람에 char 개수가 10개 이하인 경우를 catch하지 못하고 있음
+        - 그냥 데이터 전처리와 Vector DB에 저장하는 코드 파일을 그냥 분리해야겠다.
+        - 데이터 전처리는 추후 계속 변경될 여지가 있어서 별도 파일로 관리하는 편이 낫겠음.
+
+
+## Idea
+지금은 문장 3개를 연이어 붙여서 하나의 문장으로 만드는 작업을 하였다.
+    - 문장 3개 말고 문장 5개, 7개까지 붙여서 하나의 문장으로 만들고, 이것도 vectordb에 동시에 넣자.
+    - 그렇게 해서 retrieve를 했을 때 나온 문장 중에서 문장 3개 통합 문장이 문장 5개 통합 문장 내에 포함되었다면 문장 3개 짜리는 버린다.
+        - 이런 식으로 최대한 확보 가능하면서도 길이가 긴 문장을 retrieve 하는 전략은 어떨까?
+    - 만약 문장을 3개가 아니라 더 많이 이어붙이도록 하면 문제가 겹치는 부분이 너무 많이 나옴 - 절반 가량이 겹침.
+        - Jaccard Similarity 사용해서 처리해야 할 수도 있음.
+        - 아니면 sliding_interval_size를 늘려야 할듯.
+
+ChatGPT에 제목, description과 함께 자막을 최대 5,000자 만 넣고 오타다 싶은 것만 pattern 추려서 {} 형태로 mapping하는 json 반환하도록 만들어야 됨.
+    - 수작업으로 rulebase로 하는 것은 여러 동영상에 대해서 할 수 없어서 scalable하지 않음.
+
+
+다시 LLM 돌려서 similarity 높다고 나온 후보들 중에 어느 것이 가장 관련이 있어 보이는가? 를 다시 물어보도록 하자.
+    - 이게 ReRank 개념이라고 함.
+    - 기존의 score화 해서 얻어오는 것은 embedding vector 기반으로 cos similarity를 보는 것이고, 사람들도 이게 잘 작동 안하는 경우가 많아서 한계를 부딪히고 완전하지 않다는 것을 아니까, 보완하기 위해서 이런 것을 가져온듯.
