@@ -59,7 +59,8 @@ from utils import file_path_reader
 
 INPUT_FILE_PATH:str = os.path.join(parent_dir, "data", "results")
 INPUT_FILE_NAME:str = "Youtube_transcription.pkl"
-INPUT_FILE_PATH_WITH_NAME:str = os.path.join(INPUT_FILE_PATH, INPUT_FILE_NAME)
+INPUT_FILE_EXTENSION:str = "pkl"
+INPUT_FILE_PATH_WITH_NAME:str = os.path.join(INPUT_FILE_PATH, INPUT_FILE_NAME + "." + INPUT_FILE_EXTENSION)
 
 OUTPUT_FILE_PATH:str = os.path.join(parent_dir, "data", "results")
 OUTPUT_FILE_NAME:str = f"transcript_by_sentence"
@@ -71,7 +72,7 @@ config = {
     "SaT_model": "sat-1l-sm",
     "SaT_threshold": 0.35,
     "concat_length": 3,
-
+    "use_gpu": False,
     "index_name": "developer-quickstart-py",
     "namespace": "test",
     "cloud": "aws",
@@ -79,15 +80,15 @@ config = {
     "embed": {
         "model":"llama-text-embed-v2",
         "field_map":{"text": "chunk_text"}
-    }    
+    }
 }
 
-def input_file_loader(input_file_path:str=INPUT_FILE_PATH_WITH_NAME) -> dict:
+def input_file_loader(input_file_path:str=INPUT_FILE_PATH, INPUT_FILE_NAME:str=INPUT_FILE_NAME, input_file_extension:str=INPUT_FILE_EXTENSION) -> dict:
     """
     Load input file
 
     Input: input_file_path type
-        - example: "../data/results/Youtube_transcription.pkl"
+        - example: "../data/results/transcript_by_sentence.json"
 
     Output: dict[str, list[dict]] type
         - example:
@@ -118,8 +119,13 @@ def input_file_loader(input_file_path:str=INPUT_FILE_PATH_WITH_NAME) -> dict:
             }
           }
     """
-    with open(input_file_path, "rb") as f:
-        result = pickle.load(f)
+    input_file_path_with_name = input_file_path + "/" + input_file_name + "." + input_file_extension
+    if input_file_extension == "json":
+        with open(input_file_path_with_name, "r") as f:
+            result = json.load(f)
+    else:
+        with open(input_file_path_with_name, "rb") as f:
+            result = pickle.load(f)
     return result
 
 def output_file_loader(output_file_path:str, output_file_name:str, output_file_extension:str) -> dict[str, list[dict]]:
@@ -184,7 +190,7 @@ def YouTubeTranscript_to_text(YouTubeTranscript:YouTubeTranscriptApi) -> str:
         text += " " + snippet.text
     return text
 
-def sentence_by_SaT(text:list[str], model:str=config["SaT_model"], threshold:float=config["SaT_threshold"]) -> list[str]:
+def sentence_by_SaT(text:list[str], model:str=config["SaT_model"], threshold:float=config["SaT_threshold"], use_gpu:bool=False) -> list[str]:
     """
     Split text into sentences using SaT
     Input: text type
@@ -193,6 +199,10 @@ def sentence_by_SaT(text:list[str], model:str=config["SaT_model"], threshold:flo
         - example: ["hi everyone so I've wanted to make this video for a while", "it is a comprehensive", ...]
     """
     seg:list[str] = SaT(model)
+    if use_gpu:
+        seg.half().to("cuda")
+    else:
+        pass
     raw = seg.split(text, threshold=threshold)
     return raw
 
@@ -293,7 +303,7 @@ def attach_start_end(concatenated_text_by_SaT:list[str], youtube_transcripts_dat
             else:
                 end_at_sentence = raw_split_string.start + raw_split_string.duration
                 sents_with_metadata.append({
-                    "text":sentence,
+                    "text":sentence.strip().replace("  ", " "),
                     "start":start_at_sentence, 
                     "end":round(end_at_sentence,3), 
                     "title":youtube_transcripts_data['video_info']['title'],
@@ -305,7 +315,7 @@ def attach_start_end(concatenated_text_by_SaT:list[str], youtube_transcripts_dat
     return sents_with_metadata
 
 
-def sentence_by_SaT_with_metadata(input_transcript:dict[str, dict[str]], model:str=config["SaT_model"], threshold:float=config["SaT_threshold"], concat_length:int=config["concat_length"]) -> dict[str, list[dict]]:
+def sentence_by_SaT_with_metadata(input_transcript:dict[str, dict[str]], model:str=config["SaT_model"], threshold:float=config["SaT_threshold"], concat_length:int=config["concat_length"], use_gpu:bool=False) -> dict[str, list[dict]]:
     """
     Split text into sentences using SaT with metadata
     Input:
@@ -331,13 +341,17 @@ def sentence_by_SaT_with_metadata(input_transcript:dict[str, dict[str]], model:s
           ...
           ]
     """
-    global INPUT_FILE_PATH_WITH_NAME    
+    global INPUT_FILE_PATH, INPUT_FILE_NAME, INPUT_FILE_EXTENSION
+    global OUTPUT_FILE_PATH, OUTPUT_FILE_NAME, OUTPUT_FILE_EXTENSION
     result:dict[str, list[dict]] = {}
+    full_text_dict:dict[str, str] = {}
 
     for youtube_id, youtube_transcripts_data in input_transcript.items(): # Each video
 
         Full_text:str = YouTubeTranscript_to_text(youtube_transcripts_data['transcription']) # "hi everyone so I've wanted to make this video for a while it is a comprehensive"
-        segmented_text_by_SaT:list[str] = sentence_by_SaT(text=Full_text, model=model, threshold=threshold) # ["hi everyone so I've wanted to make this video for a while", "it is a comprehensive", ...]
+        full_text_dict[youtube_id] = Full_text
+
+        segmented_text_by_SaT:list[str] = sentence_by_SaT(text=Full_text, model=model, threshold=threshold, use_gpu=use_gpu) # ["hi everyone so I've wanted to make this video for a while", "it is a comprehensive", ...]
 
         # start end를 붙이는 작업을 하기 전에 짧은 텍스트 쳐내기, 의미없는 text pattern filter 적용 등의 전처리하는 모듈이 필요하다.        
         segmented_text_by_SaT = text_list_preprocessing(segmented_text_by_SaT, concat_length=concat_length)
@@ -345,6 +359,7 @@ def sentence_by_SaT_with_metadata(input_transcript:dict[str, dict[str]], model:s
 
         result[youtube_id] = sents_with_metadata
 
+    save_result_to_file(result=full_text_dict, file_path=OUTPUT_FILE_PATH, file_name="Full_text__input_of_weired_wrd_sensor", file_extension="json")
     return result
 
 # === namespace length function===
@@ -449,12 +464,13 @@ def transcript_to_record_batch(video_ids:str, transcript_data:list[dict], pc_ind
 
 def main():
     # === Data processing ===
-    global INPUT_FILE_PATH_WITH_NAME, OUTPUT_FILE_PATH, OUTPUT_FILE_NAME, OUTPUT_FILE_EXTENSION
+    global INPUT_FILE_PATH, INPUT_FILE_NAME, INPUT_FILE_EXTENSION
+    global OUTPUT_FILE_PATH, OUTPUT_FILE_NAME, OUTPUT_FILE_EXTENSION
 
     pc = connect_to_Pinecone(api_key=config["PINECONE_API_KEY"])
     pc_index = connect_to_Index(pc=pc, host=config["PINECONE_HOST"])
 
-    raw_transcript:dict[str, dict[str]] = input_file_loader(input_file_path=INPUT_FILE_PATH_WITH_NAME)
+    raw_transcript:dict[str, dict[str]] = input_file_loader(input_file_path=INPUT_FILE_PATH, INPUT_FILE_NAME=INPUT_FILE_NAME, input_file_extension=INPUT_FILE_EXTENSION)
     previous_processed_video:dict[str, list[dict]] = output_file_loader(output_file_path=OUTPUT_FILE_PATH, output_file_name=OUTPUT_FILE_NAME, output_file_extension=OUTPUT_FILE_EXTENSION)
 
     filtered_transcript:dict[str, dict[str]] = {}
@@ -464,7 +480,7 @@ def main():
         else:
             pass
 
-    current_result = sentence_by_SaT_with_metadata(filtered_transcript, model=config["SaT_model"], threshold=config["SaT_threshold"], concat_length=config["concat_length"])
+    current_result = sentence_by_SaT_with_metadata(filtered_transcript, model=config["SaT_model"], threshold=config["SaT_threshold"], concat_length=config["concat_length"], use_gpu=config["use_gpu"])
     data_processed_result = previous_processed_video.copy()
     data_processed_result.update(current_result)
     print("previous processed video: ", len(list(previous_processed_video.keys())))

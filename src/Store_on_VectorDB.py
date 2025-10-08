@@ -46,7 +46,7 @@ INPUT_FILE_PATH_WITH_NAME = os.path.join(INPUT_FILE_PATH, INPUT_FILE_NAME)
 ### === VectorDB Configuration ===
 config = {
     "index_name": "developer-quickstart-py",
-    "namespace": "test",
+    "namespace": "Project_RAG",
     "cloud": "aws",
     "region": "us-east-1",
     "embed": {
@@ -170,7 +170,10 @@ def check_vector_id_existence(pc_index:"Pinecone.Index", namespace:str=config["n
     
     Similar with SELECT in SQL: SELECT * FROM table WHERE id IN (vec1, vec2, ...)
     """
-    return bool(pc_index.fetch(ids=vector_id_list, namespace=namespace).vectors)
+    if namespace in pc_index.describe_index_stats()['namespaces']:
+        return bool(pc_index.fetch(ids=vector_id_list, namespace=namespace).vectors)
+    else:
+        return False
 
 def get_namespace_len(pc_index:"Pinecone.Index", namespace:str=config["namespace"]) -> int: # Level 3 (namespace Level)
     """
@@ -295,7 +298,7 @@ def upsert_data(pc_index:"Pinecone.Index", vectors:list[dict], namespace:str=con
     else:
         pc_index.upsert(namespace, vectors)
 
-def upsert_records(pc_index:"Pinecone.Index", records:list[dict], namespace:str=config["namespace"]) -> None: # Level 2 (Index Level)
+def upsert_records(pc_index:"Pinecone.Index", records:list[dict], namespace:str=config["namespace"], batch_size:int=96) -> None: # Level 2 (Index Level)
     """
     It's for integrated model
     Input: pc_index, vectors, namespace
@@ -319,10 +322,12 @@ def upsert_records(pc_index:"Pinecone.Index", records:list[dict], namespace:str=
         - Just upsert records data
     """
     record_exist = check_vector_id_existence(pc_index=pc_index, namespace=namespace, vector_id_list=list(map(lambda x: x["id"], records)))
+    batch_split_list = [records[i:i+batch_size] for i in range(0, len(records), batch_size)]
     if record_exist:
         print("The record already exist!! all upsert has been canceled")
     else:
-        pc_index.upsert_records(namespace, records)
+        for batch in batch_split_list:
+            pc_index.upsert_records(namespace, batch)
 
 def delete_vector_data(pc_index:"Pinecone.Index", namespace:str, vector_id_list:list[str]=[]) -> None:
     """
@@ -390,7 +395,7 @@ def main():
     pc_index = connect_to_Index(pc=pc, host=PINECONE_HOST)
     transcript_data = intput_data_loader(input_file_path=INPUT_FILE_PATH_WITH_NAME)
 
-    upsert_records(pc_index=pc_index, records=transcript_data, namespace=config["namespace"])
+    upsert_records(pc_index=pc_index, records=transcript_data, namespace=config["namespace"], batch_size=96)
     print(f"{len(transcript_data)} records has been upserted! Done!")
 
 if __name__ == "__main__":

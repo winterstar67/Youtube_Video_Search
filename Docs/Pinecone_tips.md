@@ -28,3 +28,7 @@ pc_index.upsert(
 # namespace 삭제 (내용을 모두 비움)
 pc_index.delete(delete_all=True, namespace="my_namespace")
 ```
+
+### 2025-10-08 13:18
+E5 embedding 모델은 한 번에 Upsert 가능한 batch size가 96개로 고정되어 있다.
+    - https://www.pinecone.io/learn/the-practitioners-guide-to-e5/
