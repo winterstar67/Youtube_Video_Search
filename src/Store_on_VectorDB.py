@@ -39,43 +39,16 @@ PINECONE_HOST = os.getenv("PINECONE_HOST")
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 
-INPUT_FILE_PATH = os.path.join(parent_dir, "data", "results")
-INPUT_FILE_NAME = "vectorDB_upsert_data.json"
+import sys
+sys.path.append(parent_dir)
+from utils.file_path_reader import load_video_config, file_loader
+from utils.Pinecone_connection import get_index_host_mapping
+from Youtube_tool.ID_extraction import extract_video_id
+
+INPUT_FILE_PATH = os.path.join(parent_dir, "data", "results", "transcript_processing")
+INPUT_FILE_NAME = "vectorDB_upsert_data"
+INPUT_FILE_EXTENSION = "json"
 INPUT_FILE_PATH_WITH_NAME = os.path.join(INPUT_FILE_PATH, INPUT_FILE_NAME)
-
-### === VectorDB Configuration ===
-config = {
-    "index_name": "developer-quickstart-py",
-    "namespace": "Project_RAG",
-    "cloud": "aws",
-    "region": "us-east-1",
-    "embed": {
-        "model":"llama-text-embed-v2",
-        "field_map":{"text": "chunk_text"}
-    }
-}
-
-# === Load data ===
-def intput_data_loader(input_file_path:str=INPUT_FILE_PATH_WITH_NAME) -> dict:
-    """
-    Load input data from json file
-    Input: input_file_path type
-        - example: "data/results/vectorDB_upsert_data.json"
-
-    Output: dict[str, list[dict]] type
-        - example:
-          {
-            "https://www.youtube.com/watch?v=EWvNQjAaOHw": [
-                {text: 'hi everyone so in this video I would', start: 0.12, duration: 3.72}, 
-                {text: 'like to continue our general audience', start: 2.159, duration: 5.041}, 
-                {text: 'series on large language models like', start: 3.84, duration: 5.839},
-                ...
-            ]
-          }
-    """
-    with open(input_file_path, "r") as f:
-        result = json.load(f)
-    return result
 
 # === Connect to VectorDB ===
 def connect_to_Pinecone(api_key:str=PINECONE_API_KEY) -> Pinecone: # Level 1 (Pinecone Level)
@@ -157,7 +130,7 @@ def check_namespace_list(pc_index:"Pinecone.Index") -> dict[str, int]: # Level 3
 
     return result
 
-def check_vector_id_existence(pc_index:"Pinecone.Index", namespace:str=config["namespace"], vector_id_list:list[str]=[]) -> bool:
+def check_vector_id_existence(pc_index:"Pinecone.Index", namespace:str, vector_id_list:list[str]) -> bool:
     """
     Check vector id existence
     Input: pc_index, namespace, vector_id_list
@@ -175,7 +148,7 @@ def check_vector_id_existence(pc_index:"Pinecone.Index", namespace:str=config["n
     else:
         return False
 
-def get_namespace_len(pc_index:"Pinecone.Index", namespace:str=config["namespace"]) -> int: # Level 3 (namespace Level)
+def get_namespace_len(pc_index:"Pinecone.Index", namespace:str) -> int: # Level 3 (namespace Level)
     """
     Get namespace length
     Input: pc_index, namespace
@@ -191,7 +164,7 @@ def get_namespace_len(pc_index:"Pinecone.Index", namespace:str=config["namespace
     else:
         return 0
 
-def get_vector_data_samples(pc_index:"Pinecone.Index", ids:list[str], namespace:str=config["namespace"]) -> list[dict]: # Level 3 (namespace Level)
+def get_vector_data_samples(pc_index:"Pinecone.Index", ids:list[str], namespace:str) -> list[dict]: # Level 3 (namespace Level)
     """
     Get vector data of sample data
     Input: pc_index, ids, namespace
@@ -217,7 +190,7 @@ def namespace_checker(namespace_list:list[str], namespace:str) -> bool: # Level 
     """
     return namespace in namespace_list
 
-def records_id_sampling(pc_index:"Pinecone.Index", limit:int=3, namespace:str=config["namespace"]) -> list[str]: # Level 3 (namespace Level)
+def records_id_sampling(pc_index:"Pinecone.Index", limit:int, namespace:str) -> list[str]: # Level 3 (namespace Level)
     """
     Sampling records id
     Input: pc_index, limit, namespace
@@ -270,7 +243,7 @@ def create_integrated_model_index(pc:Pinecone, index_name:str, config:dict) -> N
     else:
         print("The index already exist")
 
-def upsert_data(pc_index:"Pinecone.Index", vectors:list[dict], namespace:str=config["namespace"]) -> None: # Level 2 (Index Level)
+def upsert_data(pc_index:"Pinecone.Index", vectors:list[dict], namespace:str) -> None: # Level 2 (Index Level)
     """
     It's for user defined embedding model
     Input: pc_index, vectors, namespace
@@ -298,16 +271,16 @@ def upsert_data(pc_index:"Pinecone.Index", vectors:list[dict], namespace:str=con
     else:
         pc_index.upsert(namespace, vectors)
 
-def upsert_records(pc_index:"Pinecone.Index", records:list[dict], namespace:str=config["namespace"], batch_size:int=96) -> None: # Level 2 (Index Level)
+def upsert_records(dict_of_pc_index:dict[str, "Pinecone.Index"], all_records:dict[str, list[dict]], video_config:dict, batch_size:int=96) -> None: # Level 2 (Index Level)
     """
     It's for integrated model
-    Input: pc_index, vectors, namespace
-        - pc_index: Pinecone.Index(host=PINECONE_HOST)
+    Input: dict_of_pc_index, records, video_config
+        - dict_of_pc_index: dict[str, Pinecone.Index(host=PINECONE_HOST)]
         - records: [
                     {
                         "_id": "rec1",
                         "chunk_text": "Apples are a great source of dietary fiber, which supports digestion and helps maintain a healthy gut.",
-                        "category": "digestive system", 
+                        "category": "digestive system",
                     },
                     {
                         "_id": "rec2",
@@ -321,13 +294,27 @@ def upsert_records(pc_index:"Pinecone.Index", records:list[dict], namespace:str=
     Output: None
         - Just upsert records data
     """
-    record_exist = check_vector_id_existence(pc_index=pc_index, namespace=namespace, vector_id_list=list(map(lambda x: x["id"], records)))
-    batch_split_list = [records[i:i+batch_size] for i in range(0, len(records), batch_size)]
-    if record_exist:
-        print("The record already exist!! all upsert has been canceled")
-    else:
-        for batch in batch_split_list:
-            pc_index.upsert_records(namespace, batch)
+    video_config_keys_to_id = {extract_video_id(video_url): video_config[video_url] for video_url in video_config.keys()}
+
+    for video_id, records in all_records.items():
+        video_config_data = video_config_keys_to_id[video_id]
+        index_name = video_config_data["index_name"]
+        namespace = video_config_data["namespace"]
+        pc_index = dict_of_pc_index[index_name]
+
+        # Check only first and last record to avoid 414 error
+        # If these exist, assume entire batch was already uploaded
+        sample_ids = [records[0]["id"], records[-1]["id"]] if len(records) > 1 else [records[0]["id"]]
+        record_exist = check_vector_id_existence(pc_index=pc_index, namespace=namespace, vector_id_list=sample_ids)
+
+        batch_split_list = [records[i:i+batch_size] for i in range(0, len(records), batch_size)]
+        if record_exist:
+            print(f"Records for video {video_id} already exist (checked first/last). Skipping upsert.")
+        else:
+            print(f"Upserting {len(records)} records for video {video_id} in {len(batch_split_list)} batches...")
+            for idx, batch in enumerate(batch_split_list, 1):
+                pc_index.upsert_records(namespace, batch)
+                print(f"  Batch {idx}/{len(batch_split_list)} uploaded ({len(batch)} records)")
 
 def delete_vector_data(pc_index:"Pinecone.Index", namespace:str, vector_id_list:list[str]=[]) -> None:
     """
@@ -343,59 +330,28 @@ def delete_vector_data(pc_index:"Pinecone.Index", namespace:str, vector_id_list:
     else:
         print("The vector id does not exist!! all delete has been canceled")
 
-### === Data Processing ===
-
-def transcript_to_record(id:str, transcript_data:dict) -> dict:
-    """
-    Convert transcript data to record
-    Input: transcript_data
-        - transcript_data: dict type
-            - example: {"text": "Hello, world!", "start": 0.12, "end": 3.72, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'},
-
-    Output: list[dict] type
-        - example: {"id": "rec1", "text": "Hello, world!", metadata: str({"start": 0.12, "end": 3.72, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'})}
-    """
-    return {"id": str(id), f"{config["embed"]["field_map"]['text']}": transcript_data["text"], "metadata": str({"start": transcript_data["start"], "duration": transcript_data["end"]})}
-
-def transcript_to_record_batch(video_ids:str, transcript_data:list[dict], pc_index:"Pinecone.Index", namespace:str) -> list[dict]:
-    """
-    Convert transcript data to record
-    Input: video_ids, transcript_data, pc_index, namespace
-        - video_ids: list[str] type
-            - example: ["video_id1", "video_id2", ...]
-        - transcript_data: list[dict] type
-            - example: [
-                        {"text": "Hello, world!", "start": 0.12, "end": 3.72, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'},
-                        {"text": "How are you?", "start": 3.73, "end": 5.61, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'},
-                        ...
-                        ]
-        - pc_index: Pinecone.Index(host=PINECONE_HOST)
-        - namespace: "namespace"
-
-    Output: list[dict] type
-        - example: [
-                {"id": "rec1", "text": "Hello, world!", metadata: str({"start": 0.12, "end": 3.72, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'})}
-                {"id": "rec2", "text": "How are you?", metadata: str({"start": 3.73, "end": 5.61, "title":'Guide_of_LLM', "channelTitle":'Test_channel', "publishedAt":'2025-02-05T18:23:47Z'})}
-                ...
-            ]
-    """
-    result = []
-    id_start = get_namespace_len(pc_index=pc_index, namespace=namespace) + 1
-    id_start_tracker = id_start
-    for video_id in video_ids:
-        id_start = id_start_tracker
-        for id, record in enumerate(transcript_data[video_id], id_start):
-            result.append(transcript_to_record(id=f"{video_id}__{id}", transcript_data=record))
-            id_start_tracker += 1
-
-    return result
-
 def main():
-    pc = connect_to_Pinecone(api_key=PINECONE_API_KEY)
-    pc_index = connect_to_Index(pc=pc, host=PINECONE_HOST)
-    transcript_data = intput_data_loader(input_file_path=INPUT_FILE_PATH_WITH_NAME)
+    global INPUT_FILE_PATH, INPUT_FILE_NAME, INPUT_FILE_EXTENSION
+    video_config = load_video_config()
 
-    upsert_records(pc_index=pc_index, records=transcript_data, namespace=config["namespace"], batch_size=96)
+    pc = connect_to_Pinecone(api_key=PINECONE_API_KEY)
+    index_host_mapping:dict[str, str] = get_index_host_mapping(pc)
+    dict_of_pc_index = {}
+    for index_name, host in index_host_mapping.items():
+        dict_of_pc_index[index_name] = connect_to_Index(pc=pc, host=host)
+    """
+    dict_of_pc_index == {
+        "developer-quickstart-py": Pinecone.Index(host="developer-quickstart-py-nibcub6.svc.aped-4627-b74a.pinecone.io"),
+        "another-index": Pinecone.Index(host="another-index-xyz123.svc.aped-4627-b74a.pinecone.io")
+    }
+    """
+
+    transcript_data = file_loader(file_path=INPUT_FILE_PATH, file_name=INPUT_FILE_NAME, file_extension=INPUT_FILE_EXTENSION)
+    if transcript_data is None:
+        raise ValueError("Transcript data is not loaded")
+
+
+    upsert_records(dict_of_pc_index=dict_of_pc_index, all_records=transcript_data, video_config=video_config, batch_size=96)
     print(f"{len(transcript_data)} records has been upserted! Done!")
 
 if __name__ == "__main__":

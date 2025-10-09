@@ -1,0 +1,9 @@
+# FastAPI Web Application Dependencies
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+jinja2==3.1.4
+python-multipart==0.0.20
+pydantic==2.10.3
+
+# Existing project dependencies (if not already in main requirements.txt)
+# These should match your project's existing dependencies

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>저장 - YouTube Storage System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .info-box {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 5px;
+        }
+        .info-box p {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 5px;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+        label .optional {
+            color: #999;
+            font-weight: normal;
+            font-size: 0.9em;
+        }
+        input[type="text"], input[type="url"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus, input[type="url"]:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        #loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+            font-weight: bold;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+        .success {
+            background: #efe;
+            color: #2d7a2d;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+        .success h3 {
+            margin-bottom: 10px;
+        }
+        .success-details {
+            margin-top: 10px;
+            font-size: 0.95em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← 홈으로 돌아가기</a>
+        <h1>💾 YouTube 영상 저장</h1>
+
+        <div class="info-box">
+            <p><strong>처리 파이프라인:</strong></p>
+            <p>1. YouTube 자막 추출 (Youtube_transcription.py)</p>
+            <p>2. 자막 전처리 및 문장 분할 (transcript_processing.py)</p>
+            <p>3. VectorDB에 저장 (Store_on_VectorDB.py)</p>
+        </div>
+
+        <form id="storeForm">
+            <div class="form-group">
+                <label for="video_url">YouTube 영상 URL *</label>
+                <input type="url" id="video_url" name="video_url" required
+                       placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+
+            <div class="form-group">
+                <label for="author">작성자/출처 <span class="optional">(선택)</span></label>
+                <input type="text" id="author" name="author"
+                       placeholder="예: Andrej Karpathy">
+            </div>
+
+            <div class="form-group">
+                <label for="comment">코멘트 <span class="optional">(선택)</span></label>
+                <textarea id="comment" name="comment"
+                          placeholder="이 영상에 대한 메모나 설명을 입력하세요..."></textarea>
+            </div>
+
+            <button type="submit" id="submitBtn">VectorDB에 저장</button>
+        </form>
+
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>처리 중입니다... 영상 길이에 따라 몇 분이 걸릴 수 있습니다.</p>
+        </div>
+
+        <div id="error" class="error"></div>
+        <div id="success" class="success"></div>
+    </div>
+
+    <script>
+        document.getElementById('storeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+            const successDiv = document.getElementById('success');
+            const errorDiv = document.getElementById('error');
+
+            // Reset displays
+            successDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+            loading.style.display = 'block';
+            submitBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('video_url', document.getElementById('video_url').value);
+            formData.append('author', document.getElementById('author').value);
+            formData.append('comment', document.getElementById('comment').value);
+
+            try {
+                const response = await fetch('/store/execute', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    successDiv.innerHTML = `
+                        <h3>✅ 저장 완료!</h3>
+                        <div class="success-details">
+                            <p><strong>영상 URL:</strong> ${data.video_url}</p>
+                            ${data.author ? `<p><strong>작성자:</strong> ${data.author}</p>` : ''}
+                            ${data.comment ? `<p><strong>코멘트:</strong> ${data.comment}</p>` : ''}
+                            <p><strong>처리된 레코드 수:</strong> ${data.records_processed}</p>
+                            <p style="margin-top: 10px;">${data.message}</p>
+                        </div>
+                    `;
+                    successDiv.style.display = 'block';
+
+                    // Reset form
+                    document.getElementById('storeForm').reset();
+                } else {
+                    errorDiv.innerHTML = `<strong>오류 발생:</strong><br>${data.message}`;
+                    if (data.details) {
+                        errorDiv.innerHTML += `<br><small>${data.details}</small>`;
+                    }
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.innerHTML = `<strong>오류 발생:</strong><br>${error.message}`;
+                errorDiv.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

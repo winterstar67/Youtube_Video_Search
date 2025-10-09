@@ -2,4 +2,13 @@
 data/
 backup/
 src/Not_Used_files/
-src/Youtube_tool/__pycache__/
+src/Youtube_tool/Youtube_video_downloader/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*.ipynb_checkpoints

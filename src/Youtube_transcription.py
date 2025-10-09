@@ -29,6 +29,7 @@ Todo list:
 
 """
 from youtube_transcript_api import YouTubeTranscriptApi
+import gpt_based_weired_word_sensor
 from Youtube_tool.ID_extraction import extract_video_id
 from Youtube_tool import Youtube_Collection
 import os
@@ -44,13 +45,17 @@ parent_path = os.path.dirname(current_path)
 import sys
 sys.path.append(parent_path)
 from utils import file_path_reader
+from utils.file_path_reader import file_loader, save_result_to_file, concat_data
 
 INPUT_FILE_PATH:str = os.path.join(parent_path, "data", "external_data")
-INPUT_FILE_NAME:str = "video_link_target.yaml"
+INPUT_FILE_NAME:str = "video_link_target"
+INPUT_FilE_EXTENSION:str = "yaml"
 
-OUTPUT_FILE_PATH:str = os.path.join(parent_path, "data", "results")
-OUTPUT_FILE_EXTENSION:str = "pkl"
+
+SCRIPT_NAME:str = os.path.splitext(os.path.basename(__file__))[0]  # "Youtube_transcription"
+OUTPUT_FILE_PATH:str = os.path.join(parent_path, "data", "results", SCRIPT_NAME)
 OUTPUT_FILE_NAME:str = "Youtube_transcription"
+OUTPUT_FILE_EXTENSION:str = "pkl"
 
 # ================================ Function definition ================================
 def check_input_file_existence() -> None:
@@ -86,86 +91,6 @@ def check_result_path_existence() -> None:
             print("Backup file path already exists")
     except Exception as e:
         print("Error at check_result_path_existence: " + str(e))
-
-def output_dictionary_loader(output_file_path:str, output_file_name:str, output_file_extension:str) -> dict[str, list[dict]]:
-    """
-    Load output dictionary from pickle file
-
-    Input: output_file_path, output_file_name, output_file_extension
-        - example: "data/results", "Youtube_transcription", "pkl"
-
-    Output: dict[str, list[dict]]
-    """
-    output_file_path_with_name = output_file_path + "/" + output_file_name + "." + output_file_extension
-    try:
-        if not os.path.exists(output_file_path_with_name):
-            return {}
-        else:
-            with open(output_file_path_with_name, "rb") as f:
-                return pickle.load(f)
-    except Exception as e:
-        print("Error at output_dictionary_loader: " + str(e))
-        return {}
-
-def save_result_to_file(youtube_transcription_dict:dict[str, list[dict]], output_file_path:str, output_file_name:str, output_file_extension:str) -> None:
-    """
-    Save result to file
-    """
-    backup_file_path = file_path_reader.backup_file_path_reader(output_file_name=output_file_name, output_file_extension=output_file_extension)
-
-    try:
-        with open(output_file_path + "/" + output_file_name + "." + output_file_extension, "wb") as f:
-            pickle.dump(youtube_transcription_dict, f)    
-
-        with open(backup_file_path, "wb") as f:
-            pickle.dump(youtube_transcription_dict, f)
-
-    except Exception as e:
-        print("Error at save_result_to_file: " + str(e))
-
-def save_result_to_csv(youtube_video_infos:dict[str, list[dict]], output_file_path:str, output_file_name:str, output_file_extension:str) -> None:
-    """
-    Save result to csv file
-    It save ID Table to csv file
-    Input: youtube_video_infos
-    Output: None
-    - type: dict[str, list[dict]]
-    - example:
-      {
-        'youtube_id': {
-          'title': 'title',
-          'channelTitle': 'channelTitle',
-          'description': 'description',
-          'publishedAt': 'publishedAt',
-          'channelId': 'channelId',
-          'defaultLanguage': 'defaultLanguage',
-          'categoryId': 'categoryId'
-        }
-      }
-
-    Output: None
-    """
-    backup_file_path = file_path_reader.backup_file_path_reader(output_file_name=output_file_name, output_file_extension=output_file_extension)
-    value_sample = youtube_video_infos[list(youtube_video_infos.keys())[0]]
-    columns = ['youtube_id', *list(value_sample.keys())]
-    try:
-        if os.path.exists(output_file_path + "/" + output_file_name + ".csv"):
-            previous_output_df = pd.read_csv(OUTPUT_FILE_PATH + OUTPUT_FILE_NAME + ".csv")
-        else:
-            previous_output_df = pd.DataFrame(columns=columns)
-        
-        current_output_df = pd.DataFrame.from_dict(youtube_video_infos, orient='index').reset_index()
-        current_output_df = current_output_df.rename(columns={'index': 'youtube_id'})
-
-        output_df = pd.concat([previous_output_df, current_output_df], ignore_index=True)
-        output_df.to_csv(output_file_path + "/" + output_file_name + ".csv", index=False)
-        
-        backup_df = pd.concat([previous_output_df, current_output_df], ignore_index=True)
-        backup_df.to_csv(backup_file_path, index=False)
-
-    except Exception as e:
-        print("Error at save_result_to_csv: " + str(e))
-
 
 def get_transcription(file_path:str=None) -> dict[str, list[dict]]:
     """
@@ -207,49 +132,67 @@ def get_transcription(file_path:str=None) -> dict[str, list[dict]]:
         >>> print(first_snippet.start)  # 0.12
         >>> print(first_snippet.duration)  # 3.72
     """
-    global INPUT_FILE_PATH, INPUT_FILE_NAME
-
+    global OUTPUT_FILE_PATH, OUTPUT_FILE_NAME, OUTPUT_FILE_EXTENSION
+    global INPUT_FILE_PATH, INPUT_FILE_NAME, INPUT_FilE_EXTENSION
+    
     try:
-        if file_path is None:
-            file_path = os.path.join(INPUT_FILE_PATH, INPUT_FILE_NAME)
+        # 이전에 처리했던 결과 데이터 로드
+        youtube_transcription_dict_loaded:dict[str, list[dict]] = file_loader(file_path=OUTPUT_FILE_PATH, file_name=OUTPUT_FILE_NAME, file_extension=OUTPUT_FILE_EXTENSION)
+        if youtube_transcription_dict_loaded is None: # 파일이 없는 경우
+            youtube_transcription_dict_loaded:dict = {}
 
-        check_result_path_existence()
-        check_input_file_existence()
+        # 현재 처리하고자 하는 모든 데이터, 단 이전에 처리했던 내용을 실수로 지우지 않은 경우, 중복되어 있을 수 있음. 그래서 아래에서 후처리로 중복된 비디오는 skip 작업을 진행하는 것
+        all_link_lists:list[str] = list(file_loader(file_path=INPUT_FILE_PATH, file_name=INPUT_FILE_NAME, file_extension=INPUT_FilE_EXTENSION).keys())
+        target_video_lists:list[str] = []
 
-        youtube_transcription_dict_loaded:dict[str, list[dict]] = output_dictionary_loader(output_file_path=OUTPUT_FILE_PATH, output_file_name=OUTPUT_FILE_NAME, output_file_extension=OUTPUT_FILE_EXTENSION)
-
-        with open(file_path, "r", encoding="utf-8") as f:
-            _target_link_lists:list[str] = yaml.safe_load(f)['target_video_link']
-        
-        youtube_id_list:list[str] = []
-        for target_link in _target_link_lists:
-            youtube_id = extract_video_id(target_link)
+        # 처리하려는 영상 리스트 중에서 과거에 이미 처리되어 VectorDB에 저장된 경우는 skip하기 위해, 과거 데이터에 없는 데이터만 유튜브 처리 대상으로 추가하는 과정
+        for video_link in all_link_lists:
+            youtube_id = extract_video_id(video_link)
             if youtube_id not in list(youtube_transcription_dict_loaded.keys()):
-                youtube_id_list.append(youtube_id)
+                target_video_lists.append(youtube_id)
             else:
-                print(f"Transcription already exists: {target_link}")
-
+                print(f"Transcription already exists: {video_link}")
+        
+        print("3")
+        # 이제 유튜브 처리 대상으로 선별된 데이터에 대해서만 지막을 수집해서 {youtube_id: FetchedTranscript} 형태의 dictionary를 생성하는 과정
         youtube_transcription_dict = {}
-        for youtube_id in youtube_id_list:
+        for youtube_id in target_video_lists:
             ytt_api:YouTubeTranscriptApi = YouTubeTranscriptApi()
             youtube_transcription_dict[youtube_id] = ytt_api.fetch(youtube_id)
         print("Youtube transcription is fetched")
 
+        # 유튜브 처리 대상으로 선별된 데이터에 대해서 유튜브 정보를 수집하는 과정
+            # 동영상 제목
+            # 동영상 채널 제목
+            # 동영상 설명
+            # 동영상 썸네일
+            # 등등
         youtube_video_infos:dict = Youtube_Collection.main()
-        save_result_to_csv(youtube_video_infos, output_file_path=OUTPUT_FILE_PATH, output_file_name=OUTPUT_FILE_NAME, output_file_extension=OUTPUT_FILE_EXTENSION)
+        value_sample = youtube_video_infos[list(youtube_video_infos.keys())[0]]
+        columns = ['youtube_id', *list(value_sample.keys())]
+        try:
+            prev_youtube_video_infos_df = file_loader(file_path=OUTPUT_FILE_PATH, file_name="ID_Table", file_extension="csv")
+        except Exception as e:
+            print("Error at prev_youtube_video_infos_df: " + str(e))
+            prev_youtube_video_infos_df = pd.DataFrame(columns=columns)
+        youtube_video_infos_df = pd.DataFrame.from_dict(youtube_video_infos, orient='index').reset_index().rename(columns={'index': 'youtube_id'})
+        result_df = concat_data(prev_youtube_video_infos_df, youtube_video_infos_df, 'csv')
+        save_result_to_file(result_df, file_path=OUTPUT_FILE_PATH, file_name="ID_Table", file_extension="csv")
         print("Youtube video infos are fetched")
 
+        # 유튜브 처리 대상으로 선별된 데이터에 대해서 유튜브 정보와 유튜브 자막 텍스트를 합치는 과정
         merged_dict = {
             key: {"transcription":youtube_transcription_dict[key], "video_info":youtube_video_infos[key]}
             for key in youtube_transcription_dict.keys()
         }
 
-        youtube_transcription_dict_loaded.update(merged_dict)
+        # 과거 데이터와 새로운 데이터를 합치는 과정
+        result = concat_data(youtube_transcription_dict_loaded, merged_dict, 'json')
         print("Merged dictionary is created")
+        save_result_to_file(merged_dict, file_path=OUTPUT_FILE_PATH, file_name=OUTPUT_FILE_NAME, file_extension=OUTPUT_FILE_EXTENSION)
+        save_result_to_file(result, file_path=OUTPUT_FILE_PATH, file_name=OUTPUT_FILE_NAME+"_stacked_version", file_extension=OUTPUT_FILE_EXTENSION)
 
-        result = youtube_transcription_dict_loaded
-
-        save_result_to_file(result, output_file_path=OUTPUT_FILE_PATH, output_file_name=OUTPUT_FILE_NAME, output_file_extension=OUTPUT_FILE_EXTENSION)
+        gpt_based_weired_word_sensor.main()
 
         return result
     

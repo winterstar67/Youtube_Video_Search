@@ -40,10 +40,13 @@ parent_dir = os.path.dirname(current_dir)
 
 sys.path.append(parent_dir)
 from utils import file_path_reader, Pinecone_connection
+from utils.file_path_reader import input_file_loader, output_file_loader, save_result_to_file
+from utils.Pinecone_connection import connect_to_Index, connect_to_Pinecone
 
 INPUT_FILE_PATH = os.path.join(parent_dir, "data", "external_data")
-INPUT_FILE_NAME = "query.json"
-INPUT_FILE_PATH_WITH_NAME = os.path.join(INPUT_FILE_PATH, INPUT_FILE_NAME)
+INPUT_FILE_NAME = "query"
+INPUT_FILE_EXTENSION = "json"
+INPUT_FILE_PATH_WITH_NAME = os.path.join(INPUT_FILE_PATH, INPUT_FILE_NAME + "." + INPUT_FILE_EXTENSION)
 
 OUTPUT_FILE_PATH = os.path.join(parent_dir, "data", "results")
 OUTPUT_FILE_NAME = "semantic_search_results"
@@ -62,33 +65,6 @@ config = {
 
 ### === Function ===
 
-def load_query(input_file_path:str=INPUT_FILE_PATH_WITH_NAME) -> dict:
-    """
-    Load query from file
-    Input: input_file_path
-        - example: "../data/external_data/query.json"
-    """
-    with open(input_file_path, "r") as f:
-        query = json.load(f)
-    return query
-
-def save_result_to_file(result:list[dict], output_file_path:str, output_file_name:str, output_file_extension:str) -> None:
-    """
-    Save result to file
-    Input: result
-        - example: [{"id": "1", "text": "Hello, world!"}]
-    Input: output_file_path, output_file_name, output_file_extension
-        - example: "../data/results/semantic_search_results.json"
-
-    Output: None
-    """
-    backup_file_path = file_path_reader.backup_file_path_reader(output_file_name=output_file_name, output_file_extension=output_file_extension)
-    output_file_path_with_name = output_file_path + "/" + output_file_name + "." + output_file_extension
-    with open(output_file_path_with_name, "w") as f:
-        json.dump(result, f)
-    with open(backup_file_path, "w") as f:
-        json.dump(result, f)
-
 def semantic_search_with_text(query:dict, pc_index:Pinecone.Index, namespace:str, config:dict, rerank:bool=False) -> list[dict]:
     """
     It's for semantic search with text - which means it's integrated index
@@ -102,7 +78,7 @@ def semantic_search_with_text(query:dict, pc_index:Pinecone.Index, namespace:str
         - example: [{"id": "1", "text": "Hello, world!"}]
     """
     if rerank:
-        results = pc_index.search(
+        retrieved_results = pc_index.search(
             namespace=namespace,
             query=query,
             rerank={
@@ -113,16 +89,27 @@ def semantic_search_with_text(query:dict, pc_index:Pinecone.Index, namespace:str
             fields=["chunk_text", "metadata"]
         ).to_dict()
     else:
-        results = pc_index.search(
+        retrieved_results = pc_index.search(
             namespace=namespace,
             query=query
         ).to_dict()
+    
+    result = {
+        "query": query,
+        "retrieved_results": retrieved_results,
+        "config": config,
+        "retrieved_datetime_UTC9": datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')
+    }
     return results
 
 def main():
-    query = load_query(input_file_path=INPUT_FILE_PATH_WITH_NAME)
-    pc = Pinecone_connection.connect_to_Pinecone(api_key=PINECONE_API_KEY)
-    pc_index = Pinecone_connection.connect_to_Index(pc=pc, host=PINECONE_HOST)
+    # Load video config from YAML
+    from utils.file_path_reader import load_video_config
+    video_config = load_video_config()
+
+    query = input_file_loader(input_file_path=INPUT_FILE_PATH, input_file_name=INPUT_FILE_NAME, input_file_extension=INPUT_FILE_EXTENSION)
+    pc = connect_to_Pinecone(api_key=PINECONE_API_KEY)
+    pc_index = connect_to_Index(pc=pc, host=PINECONE_HOST)
     results = semantic_search_with_text(query=query, pc_index=pc_index, namespace=config["namespace"], config=config, rerank=True)
     print("results: ", results)
     save_result_to_file(result=results, output_file_path=OUTPUT_FILE_PATH, output_file_name=OUTPUT_FILE_NAME, output_file_extension=OUTPUT_FILE_EXTENSION)

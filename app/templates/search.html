@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>검색 - YouTube Search System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        #loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+            font-weight: bold;
+        }
+        #results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+        .result-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .result-score {
+            color: #667eea;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .result-text {
+            color: #333;
+            line-height: 1.6;
+        }
+        .result-metadata {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← 홈으로 돌아가기</a>
+        <h1>🔍 의미론적 검색</h1>
+
+        <form id="searchForm">
+            <div class="form-group">
+                <label for="query">검색 쿼리 *</label>
+                <textarea id="query" name="query" required placeholder="검색하고 싶은 내용을 입력하세요..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="index_name">Index 이름</label>
+                <input type="text" id="index_name" name="index_name" value="developer-quickstart-py">
+            </div>
+
+            <div class="form-group">
+                <label for="namespace">Namespace</label>
+                <input type="text" id="namespace" name="namespace" value="test">
+            </div>
+
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="rerank" name="rerank" checked>
+                    <label for="rerank" style="margin-bottom: 0;">Reranking 사용 (더 정확한 결과)</label>
+                </div>
+            </div>
+
+            <button type="submit" id="submitBtn">검색 실행</button>
+        </form>
+
+        <div id="loading">검색 중... ⏳</div>
+        <div id="error" class="error"></div>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        document.getElementById('searchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const errorDiv = document.getElementById('error');
+
+            // Reset displays
+            results.style.display = 'none';
+            errorDiv.style.display = 'none';
+            loading.style.display = 'block';
+            submitBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('query', document.getElementById('query').value);
+            formData.append('index_name', document.getElementById('index_name').value);
+            formData.append('namespace', document.getElementById('namespace').value);
+            formData.append('rerank', document.getElementById('rerank').checked);
+
+            try {
+                const response = await fetch('/search/execute', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    displayResults(data.results, data.saved_to);
+                } else {
+                    errorDiv.textContent = '오류: ' + data.message;
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.textContent = '오류: ' + error.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+
+        function displayResults(data, savedFile) {
+            const resultsDiv = document.getElementById('results');
+            let html = `<div class="success">✅ 검색 완료! 결과가 ${savedFile}에 저장되었습니다.</div>`;
+
+            if (data.retrieved_results && data.retrieved_results.results) {
+                html += '<h3 style="margin-top: 20px; color: #333;">검색 결과:</h3>';
+
+                data.retrieved_results.results.forEach((item, index) => {
+                    const score = item.score ? item.score.toFixed(4) : 'N/A';
+                    const text = item.chunk_text || 'No text available';
+                    const metadata = item.metadata || {};
+
+                    html += `
+                        <div class="result-item">
+                            <div class="result-score">결과 #${index + 1} | Score: ${score}</div>
+                            <div class="result-text">${text}</div>
+                            <div class="result-metadata">
+                                <strong>메타데이터:</strong> ${JSON.stringify(metadata, null, 2)}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            resultsDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
