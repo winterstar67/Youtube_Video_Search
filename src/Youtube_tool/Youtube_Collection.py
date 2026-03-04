@@ -25,7 +25,7 @@ root_path = os.path.dirname(parent_path)
 sys.path.append(root_path)
 from utils.file_path_reader import save_result_to_file, file_loader, concat_data
 
-INPUT_FILE_PATH = os.path.join(root_path, "data", "external_data")
+INPUT_FILE_PATH = os.path.join(root_path, "data", "raw_data")
 INPUT_FILE_NAME = "video_link_target.yaml"
 INPUT_FILE_PATH_WITH_NAME = os.path.join(INPUT_FILE_PATH, INPUT_FILE_NAME)
 

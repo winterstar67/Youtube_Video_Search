@@ -150,7 +150,7 @@ def load_video_config(file_path:str=None) -> dict:
     Load video_link_target.yaml file
 
     Input: file_path (optional)
-        - If not provided, defaults to data/external_data/video_link_target.yaml
+        - If not provided, defaults to data/raw_data/video_link_target.yaml
 
     Output: dict
         - Full YAML content including video URLs and config settings
@@ -176,7 +176,7 @@ def load_video_config(file_path:str=None) -> dict:
     """
     try:
         if file_path is None:
-            file_path = os.path.join(parent_dir, "data", "external_data", "video_link_target.yaml")
+            file_path = os.path.join(parent_dir, "data", "raw_data", "video_link_target.yaml")
 
         with open(file_path, "r", encoding="utf-8") as f:
             video_url_list = yaml.safe_load(f)

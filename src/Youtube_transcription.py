@@ -5,7 +5,7 @@ oreder in pipeline: First (1)
 youtube_transcript_api를 사용하여 지정한 동영상들의 자막을 추출하는 모듈
 
 Input: 
-    - File directory: data/external_data/video_link_target.yaml
+    - File directory: data/raw_data/video_link_target.yaml
         - Key: target_video_link
         - Value: list of video links
     - {"video_link_target": ["https://www.youtube.com/watch?v=EWvNQjAaOHw", "https://www.youtube.com/watch?v=7xTGNNLPyMI"]}
@@ -47,7 +47,7 @@ sys.path.append(parent_path)
 from utils import file_path_reader
 from utils.file_path_reader import file_loader, save_result_to_file, concat_data
 
-INPUT_FILE_PATH:str = os.path.join(parent_path, "data", "external_data")
+INPUT_FILE_PATH:str = os.path.join(parent_path, "data", "raw_data")
 INPUT_FILE_NAME:str = "video_link_target"
 INPUT_FilE_EXTENSION:str = "yaml"
 
@@ -98,7 +98,7 @@ def get_transcription(file_path:str=None) -> dict[str, list[dict]]:
 
     Args:
         file_path (str, optional): Path to YAML file containing YouTube video links.
-            Defaults to INPUT_FILE_PATH/INPUT_FILE_NAME ("data/external_data/video_link_target.yaml")
+            Defaults to INPUT_FILE_PATH/INPUT_FILE_NAME ("data/raw_data/video_link_target.yaml")
 
     Returns:
         dict[str, FetchedTranscript]: Dictionary mapping video URL to transcript object

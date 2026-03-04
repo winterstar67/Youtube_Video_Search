@@ -69,7 +69,7 @@ OUTPUT_FILE_PATH:str = os.path.join(parent_dir, "data", "results", SCRIPT_NAME)
 OUTPUT_FILE_NAME:str = f"transcript_by_sentence"
 OUTPUT_FILE_EXTENSION:str = "json"
 
-config = json.load(open(os.path.join(parent_dir, "data", "external_data", "transcript_processing_config.json"), "r"))
+config = json.load(open(os.path.join(parent_dir, "data", "raw_data", "transcript_processing_config.json"), "r"))
 if (config["use_gpu"]).lower()=="false":
     config["use_gpu"] = False
 elif (config["use_gpu"]).lower()=="true":

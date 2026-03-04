@@ -43,7 +43,7 @@ from utils import file_path_reader, Pinecone_connection
 from utils.file_path_reader import input_file_loader, output_file_loader, save_result_to_file
 from utils.Pinecone_connection import connect_to_Index, connect_to_Pinecone
 
-INPUT_FILE_PATH = os.path.join(parent_dir, "data", "external_data")
+INPUT_FILE_PATH = os.path.join(parent_dir, "data", "raw_data")
 INPUT_FILE_NAME = "query"
 INPUT_FILE_EXTENSION = "json"
 INPUT_FILE_PATH_WITH_NAME = os.path.join(INPUT_FILE_PATH, INPUT_FILE_NAME + "." + INPUT_FILE_EXTENSION)
