@@ -1,0 +1,6 @@
+{
+  "SaT_model": "sat-1l-sm",
+  "SaT_threshold": 0.5,
+  "concat_length": 3,
+  "use_gpu": "False"
+}

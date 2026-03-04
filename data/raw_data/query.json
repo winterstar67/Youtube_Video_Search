@@ -1,0 +1,4 @@
+{
+  "inputs": {"text": "What kind of content has been covered?"},
+  "top_k": 5
+}

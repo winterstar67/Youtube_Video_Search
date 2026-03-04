@@ -1,8 +1,16 @@
 .env
-data/
 backup/
 src/Not_Used_files/
 src/Youtube_tool/Youtube_video_downloader/
+
+# Data policy
+# - Track only raw input examples in data/raw_data
+# - Ignore generated pipeline outputs in data/results
+data/results/
+data/raw_data/*
+!data/raw_data/video_link_target.yaml
+!data/raw_data/transcript_processing_config.json
+!data/raw_data/query.json
 
 # Python cache files
 __pycache__/

@@ -1,0 +1,23 @@
+https://www.youtube.com/watch?v=VIDEO_ID_EXAMPLE_1:
+  index_name: developer-quickstart-py
+  namespace: Video_RAG
+  cloud: aws
+  region: us-east-1
+  embed:
+    model: llama-text-embed-v2
+    field_map:
+      text: chunk_text
+  Author: "Example Author"
+  Comment: "Example note"
+
+https://www.youtube.com/watch?v=VIDEO_ID_EXAMPLE_2:
+  index_name: developer-quickstart-py
+  namespace: Video_RAG
+  cloud: aws
+  region: us-east-1
+  embed:
+    model: llama-text-embed-v2
+    field_map:
+      text: chunk_text
+  Author: ""
+  Comment: ""
